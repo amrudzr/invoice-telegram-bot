@@ -9,13 +9,13 @@ function parseDataPemesan(text) {
   try {
     const lines = text.split('\n');
     const data = {};
-    const requiredKeys = ['nama', 'lokasi', 'no. invoice', 'tanggal', 'kota', 'kegiatan'];
+    const requiredKeys = ['nama', 'lokasi', 'no invoice', 'tanggal', 'kota', 'kegiatan'];
 
     lines.forEach(line => {
       const parts = line.split(':');
       if (parts.length < 2) return; // Abaikan baris kosong atau tidak valid
-      
-      const key = parts[0].trim().toLowerCase().replace('.', ''); // Normalisasi key
+
+      const key = parts[0].trim().toLowerCase().replace(/[^a-z0-9\s]/g, ''); // Normalisasi key
       const value = parts.slice(1).join(':').trim();
       data[key] = value;
     });
