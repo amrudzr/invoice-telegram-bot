@@ -108,7 +108,7 @@ async function updateConversation(userId, dataToUpdate) {
       ]];
 
       await sheets.spreadsheets.values.append({
-        spreadsheetId: SPREADSHE-ET_ID,
+        spreadsheetId: SPREADSHEET_ID,
         range: 'conversations!A1',
         valueInputOption: 'USER_ENTERED',
         resource: { values },
