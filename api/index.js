@@ -3,6 +3,7 @@ require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 const { getConversation, updateConversation } = require('../services/gsheet');
 const { parseDataPemesan, parseDataPesanan } = require('../utils/parser');
+const { buatRangkuman } = require('../utils/formatter');
 
 if (!process.env.BOT_TOKEN) throw new Error('BOT_TOKEN must be provided!');
 
