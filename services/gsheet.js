@@ -11,10 +11,25 @@ const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 // --- ---
 
 // Inisialisasi autentikasi
-const auth = new JWT({
-  keyFile: KEY_FILE_PATH,
-  scopes: SCOPES,
-});
+let auth;
+
+if (process.env.GOOGLE_CREDENTIALS_JSON) {
+  // KODE INI UNTUK PRODUKSI DI VERCEL
+  // Membaca dari Environment Variable
+  const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+  auth = new JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
+    scopes: SCOPES,
+  });
+} else {
+  // KODE INI UNTUK DEVELOPMENT LOKAL
+  // Membaca dari file fisik
+  auth = new JWT({
+    keyFile: './google-credentials.json',
+    scopes: SCOPES,
+  });
+}
 
 const sheets = google.sheets({ version: 'v4', auth });
 
