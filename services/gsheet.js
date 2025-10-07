@@ -3,19 +3,15 @@ const { google } = require('googleapis');
 const { JWT } = require('google-auth-library');
 
 // --- Konfigurasi ---
-// Ganti dengan ID Spreadsheet Anda (dari URL Google Sheet)
 const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID; 
-// Path ke file kunci JSON Anda
-const KEY_FILE_PATH = './google-credentials.json'; 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 // --- ---
 
-// Inisialisasi autentikasi
+// Inisialisasi autentikasi cerdas untuk Vercel & Lokal
 let auth;
 
 if (process.env.GOOGLE_CREDENTIALS_JSON) {
   // KODE INI UNTUK PRODUKSI DI VERCEL
-  // Membaca dari Environment Variable
   const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
   auth = new JWT({
     email: credentials.client_email,
@@ -24,7 +20,6 @@ if (process.env.GOOGLE_CREDENTIALS_JSON) {
   });
 } else {
   // KODE INI UNTUK DEVELOPMENT LOKAL
-  // Membaca dari file fisik
   auth = new JWT({
     keyFile: './google-credentials.json',
     scopes: SCOPES,
@@ -42,18 +37,19 @@ async function getConversation(userId) {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'conversations!A:D', // Baca semua data di sheet conversations
+      range: 'conversations!A:D',
     });
 
     const rows = response.data.values || [];
-    const header = rows[0]; // Asumsikan baris pertama adalah header
+    if (rows.length === 0) return null;
+
+    const header = rows[0];
     const userIdIndex = header.indexOf('user_id');
 
     for (let i = 1; i < rows.length; i++) {
       if (rows[i][userIdIndex] == userId) {
-        // Data ditemukan, kembalikan sebagai object
         return {
-          rowIndex: i + 1, // Simpan nomor baris untuk update nanti
+          rowIndex: i + 1,
           user_id: rows[i][0],
           status: rows[i][1],
           data_pemesan: rows[i][2],
@@ -61,7 +57,7 @@ async function getConversation(userId) {
         };
       }
     }
-    return null; // Data tidak ditemukan
+    return null;
   } catch (err) {
     console.error('Error saat membaca dari Google Sheet:', err);
     return null;
@@ -71,51 +67,53 @@ async function getConversation(userId) {
 /**
  * Membuat atau memperbarui baris percakapan untuk user_id
  * @param {number} userId - ID pengguna Telegram
- * @param {object} dataToUpdate - Data yang akan diupdate, misal { status: 'menunggu_data_pesanan' }
+ * @param {object} dataToUpdate - Data yang akan diupdate
  */
 async function updateConversation(userId, dataToUpdate) {
   try {
     const conversation = await getConversation(userId);
-    let range;
-    let values = [];
-
+    
     if (conversation) {
       // Jika user sudah ada, update baris yang ada
-      const existingData = [
-        conversation.user_id,
-        conversation.status,
-        conversation.data_pemesan,
-        conversation.data_pesanan,
-      ];
-      
-      const header = ['user_id', 'status', 'data_pemesan', 'data_pesanan'];
-      header.forEach((colName, index) => {
-        if (dataToUpdate[colName] !== undefined) {
-          existingData[index] = dataToUpdate[colName];
-        }
-      });
-      
-      range = `conversations!A${conversation.rowIndex}`;
-      values = [existingData];
+      const existingData = {
+        user_id: conversation.user_id,
+        status: conversation.status,
+        data_pemesan: conversation.data_pemesan,
+        data_pesanan: conversation.data_pesanan,
+      };
 
+      // Gabungkan data lama dengan data baru
+      const updatedData = { ...existingData, ...dataToUpdate };
+      
+      const values = [[
+        updatedData.user_id,
+        updatedData.status,
+        updatedData.data_pemesan,
+        updatedData.data_pesanan
+      ]];
+
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `conversations!A${conversation.rowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        resource: { values },
+      });
     } else {
       // Jika user baru, tambahkan baris baru
-      range = 'conversations!A1'; // Menambahkan ke akhir sheet
-      values = [[
+      const values = [[
         userId,
         dataToUpdate.status || '',
         dataToUpdate.data_pemesan || '',
         dataToUpdate.data_pesanan || '',
       ]];
-    }
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: range,
-      valueInputOption: 'USER_ENTERED',
-      resource: { values },
-    });
-    
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHE-ET_ID,
+        range: 'conversations!A1',
+        valueInputOption: 'USER_ENTERED',
+        resource: { values },
+      });
+    }
   } catch (err) {
     console.error('Error saat menulis ke Google Sheet:', err);
   }
