@@ -4,6 +4,7 @@ const { Telegraf, Markup } = require('telegraf');
 const { getConversation, updateConversation } = require('../services/gsheet');
 const { parseDataPemesan, parseDataPesanan } = require('../utils/parser');
 const { buatRangkuman } = require('../utils/formatter');
+const { generatePdf } = require('../services/pdf');
 
 if (!process.env.BOT_TOKEN) throw new Error('BOT_TOKEN must be provided!');
 
@@ -60,7 +61,15 @@ bot.on('text', async (ctx) => {
     });
     
     // Kirim pesan permintaan data pesanan (seperti sebelumnya)
-    const message = `Data pemesan diterima. 👍\n\nSekarang masukkan semua Data Pesanan dalam satu pesan.\n\nGunakan format:\n\`Periode (MM/DD/YY-MM/DD/YY), Keterangan, Kuantitas, Harga Satuan\`\n\nContoh:\n\`10/10/25-10/12/25, Innova Zenix, 1, 600000\``;
+    const message = `Data pemesan diterima. 👍
+    Sekarang masukkan semua Data Pesanan. Gunakan format 4 bagian yang dipisah koma:
+    \`Periode (MM/DD/YY-MM/DD/YY), Keterangan Unit, Kuantitas, Harga Satuan\`
+    
+    *Bot akan menghitung jumlah hari secara otomatis dari periode yang Anda masukkan.*
+    
+    Contoh:
+    \`10/10/25-10/12/25, Innova Zenix, 1, 600000\`
+    `;
     const keyboard = Markup.inlineKeyboard([ Markup.button.callback('📋 Salin Format Pesanan', 'copy_pesanan_format') ]);
     await ctx.replyWithMarkdown(message, keyboard);
   
@@ -108,7 +117,36 @@ bot.on('callback_query', async (ctx) => {
   } else if (action === 'generate_pdf') { // DITAMBAHKAN: Handler untuk tombol generate PDF
     await ctx.answerCbQuery('⏳ Mohon tunggu...');
     await ctx.reply('Siap! Sedang membuat file PDF untuk Anda. Ini mungkin butuh beberapa detik...');
-    // TODO: Panggil fungsi untuk membuat PDF di sini
+    try {
+      await ctx.answerCbQuery('⏳ Mohon tunggu...');
+      await ctx.reply('Siap! Sedang membuat file PDF untuk Anda. Ini mungkin butuh beberapa detik...');
+
+      // Ambil data terbaru dari Google Sheet
+      const conversation = await getConversation(userId);
+      if (!conversation || conversation.status !== 'konfirmasi') {
+        return ctx.reply('Data invoice tidak ditemukan atau sudah tidak valid. Silakan mulai lagi dengan /buat_invoice.');
+      }
+
+      const dataPemesan = JSON.parse(conversation.data_pemesan);
+      const dataPesanan = JSON.parse(conversation.data_pesanan);
+
+      // Panggil fungsi generate PDF
+      const pdfBuffer = await generatePdf(dataPemesan, dataPesanan);
+
+      // Kirim PDF sebagai dokumen
+      await ctx.replyWithDocument({
+        source: pdfBuffer,
+        filename: `invoice-${dataPemesan['no. invoice'].replace(/[/\\?%*:|"<>]/g, '-')}.pdf`
+      });
+
+      // Update status untuk menandakan proses selesai
+      await updateConversation(userId, { status: 'selesai' });
+
+    } catch (error) {
+      console.error(error);
+      await ctx.reply('Maaf, terjadi kesalahan saat membuat PDF. Silakan coba lagi.');
+    }
+    return;
   }
 
   // Cek jika bukan generate_pdf, baru jalankan answerCbQuery biasa
