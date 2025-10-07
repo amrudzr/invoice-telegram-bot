@@ -119,6 +119,11 @@ bot.on('callback_query', async (ctx) => {
 
 // --- Boilerplate untuk Vercel ---
 module.exports = async (req, res) => {
+  if (!req.body || req.method !== 'POST') {
+    console.log('Menerima permintaan GET, kemungkinan dari browser.');
+    return res.status(200).send('This is a Telegram Bot Webhook endpoint. Please interact via Telegram chat.');
+  }
+  
   try {
     // Menggunakan webhook Vercel. `bot.launch()` hanya untuk local.
     await bot.handleUpdate(req.body, res);
